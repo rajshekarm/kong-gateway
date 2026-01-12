@@ -13,10 +13,10 @@ services:
       KONG_PG_PASSWORD: ${POSTGRES_PASSWORD}
       KONG_PG_DATABASE: kong
 
-
-      KONG_PG_SSL: "on"
-      KONG_PG_SSL_VERIFY: "on"
-      KONG_PG_SSL_CERT: /etc/ssl/certs/rds-ca.pem
+     # SSL DISABLED for Now : TODO
+      KONG_PG_SSL: "off"
+      KONG_PG_SSL_VERIFY: "off"
+        
 
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
