@@ -116,36 +116,13 @@ def get_kong_container_id() -> Optional[str]:
     except Exception:
         return None
 
-
-def health_check(
-    max_attempts: int = 30,
-    interval: int = 2
-) -> bool:
-    """
-    Perform Kong health check using `kong health`
-    """
-    print(f"⏳ Checking Kong health (max {max_attempts} attempts)...")
-
-    for attempt in range(1, max_attempts + 1):
-        container_id = get_kong_container_id()
-
-        if not container_id:
-            print(f"⏳ Kong container not running yet (attempt {attempt})")
-        else:
-            result = run_command(
-                ['docker', 'exec', container_id, 'kong', 'health'],
-                check=False
-            )
-
-            if result.returncode == 0:
-                print(f"✅ Kong is healthy (attempt {attempt}/{max_attempts})")
-                return True
-
-        if attempt < max_attempts:
-            time.sleep(interval)
-
-    print("❌ Kong health check failed")
-    return False
+import requests
+def health_check():
+    try:
+        r = requests.get("http://127.0.0.1:8001/status", timeout=2)
+        return r.status_code == 200
+    except Exception:
+        return False
 
 
 def get_kong_logs(lines: int = 50):

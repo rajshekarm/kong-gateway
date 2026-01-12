@@ -41,7 +41,7 @@ def run_migrations(credentials: dict):
         # '-v', f'{config.kong.working_dir}/rds-ca.pem:/etc/ssl/certs/rds-ca.pem:ro',
         config.kong.kong_image,
         'sh', '-c',
-        'kong migrations bootstrap'
+        'kong migrations bootstrap || (kong migrations up && kong migrations finish)'
     ]
 
     run_command(cmd)
