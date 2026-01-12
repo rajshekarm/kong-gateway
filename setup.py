@@ -1,19 +1,30 @@
 #!/usr/bin/env python3
 """
-Bootstrap & initialize Kong Gateway on AWS EC2 (Ubuntu)
+Bootstrap PostgreSQL for Kong Gateway (EC2 + Docker)
 
-PRECONDITIONS:
-- RDS PostgreSQL instance already exists
-- Secrets Manager secret already exists (created by provision.py)
-- EC2 has network access to RDS
+RESPONSIBILITIES:
+- Install Docker & Docker Compose
+- Start PostgreSQL container
+- Wait for PostgreSQL readiness
+- Verify DB connectivity
+
+DOES NOT:
+- Run Kong
+- Run migrations
 """
 
+import os
 import sys
+import time
 import argparse
 import subprocess
+
 from secret_manager import KongSecretsManager
 from config import config
 from utils import check_docker, check_docker_compose, run_command
+
+
+POSTGRES_CONTAINER = "kong-postgres"
 
 
 # -----------------------------
@@ -26,7 +37,7 @@ def install_dependencies():
     commands = [
         ['sudo', 'apt-get', 'update'],
         ['sudo', 'apt-get', 'install', '-y',
-         'docker.io', 'jq', 'postgresql-client', 'wget'],
+         'docker.io', 'jq', 'postgresql-client'],
         ['sudo', 'systemctl', 'start', 'docker'],
         ['sudo', 'systemctl', 'enable', 'docker'],
         ['sudo', 'usermod', '-aG', 'docker', 'ubuntu'],
@@ -59,166 +70,82 @@ def install_docker_compose():
 
 
 # -----------------------------
-# Secret & RDS Validation
+# PostgreSQL Lifecycle
 # -----------------------------
 
-def ensure_secret_exists():
-    print("🔐 Verifying Secrets Manager secret...")
+def start_postgres_container(secret):
+    print("🐘 Starting PostgreSQL container...")
 
-    manager = KongSecretsManager(region=config.aws.region)
+    # Check if container already exists
+    result = subprocess.run(
+        ['docker', 'ps', '-a', '--format', '{{.Names}}'],
+        capture_output=True, text=True
+    )
 
-    try:
-        secret = manager.get_secret(config.aws.secret_name)
-        required_keys = {'username', 'password', 'host', 'port', 'dbname'}
+    if POSTGRES_CONTAINER in result.stdout:
+        print("ℹ️ PostgreSQL container already exists")
+        run_command(['docker', 'start', POSTGRES_CONTAINER], check=False)
+        return
 
-        if not required_keys.issubset(secret.keys()):
-            print("❌ Secret is missing required fields")
-            sys.exit(1)
+    run_command([
+        'docker', 'run', '-d',
+        '--name', POSTGRES_CONTAINER,
+        '-p', f"{secret['port']}:5432",
+        '-e', f"POSTGRES_USER={secret['username']}",
+        '-e', f"POSTGRES_PASSWORD={secret['password']}",
+        '-e', f"POSTGRES_DB={secret['dbname']}",
+        '-v', 'kong-postgres-data:/var/lib/postgresql/data',
+        'postgres:13'
+    ])
 
-        print("✅ Secret found and valid")
-        return secret
+    print("✅ PostgreSQL container started")
 
-    except Exception as e:
-        print(f"❌ Secret not found: {config.aws.secret_name}")
-        print("💡 Run provision.py first")
-        sys.exit(1)
+
+def wait_for_postgres(secret, timeout=60):
+    print("⏳ Waiting for PostgreSQL to become ready...")
+
+    start = time.time()
+
+    while time.time() - start < timeout:
+        result = subprocess.run(
+            [
+                'docker', 'exec', POSTGRES_CONTAINER,
+                'pg_isready',
+                '-U', secret['username']
+            ],
+            capture_output=True, text=True
+        )
+
+        if result.returncode == 0:
+            print("✅ PostgreSQL is ready")
+            return True
+
+        time.sleep(2)
+
+    print("❌ PostgreSQL did not become ready in time")
+    return False
+
 
 def verify_db_connectivity(secret):
     print("🔍 Verifying database connectivity...")
 
     cmd = [
-        'docker', 'run', '--rm', 'postgres:13',
+        'docker', 'exec', POSTGRES_CONTAINER,
         'psql',
-        f"postgresql://{secret['username']}:{secret['password']}@"
-        f"{secret['host']}:{secret['port']}/postgres",
+        '-U', secret['username'],
+        '-d', secret['dbname'],
         '-c', 'SELECT 1;'
     ]
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode == 0:
         print("✅ Database connectivity verified")
-        print(result.stdout)
-        return True
-    else:
-        print("❌ Database connectivity failed")
-        print(result.stderr)
-        return False
-
-
-
-def verify_rds_connectivity(secret):
-    print("🔍 Verifying RDS connectivity...")
-
-    cmd = [
-        'docker', 'run', '--rm', 'postgres:13',
-        'psql',
-        f"postgresql://{secret['username']}:{secret['password']}@"
-        f"{secret['host']}:{secret['port']}/postgres?sslmode=require",
-        '-c', 'SELECT 1;'
-    ]
-
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30
-        )
-
-        if result.returncode != 0:
-            print("❌ Cannot connect to RDS")
-            print(result.stderr)
-            return False
-
-        print("✅ RDS connectivity verified")
         return True
 
-    except subprocess.TimeoutExpired:
-        print("❌ Connection timeout")
-        return False
-
-
-# -----------------------------
-# Database Initialization
-# -----------------------------
-
-def create_kong_database(secret):
-    print("🗄️ Ensuring Kong database exists...")
-
-    check_cmd = [
-        'docker', 'run', '--rm', 'postgres:13',
-        'psql',
-        f"postgresql://{secret['username']}:{secret['password']}@"
-        f"{secret['host']}:{secret['port']}/postgres",
-        '-tAc', "SELECT 1 FROM pg_database WHERE datname='kong'"
-    ]
-
-    result = subprocess.run(check_cmd, capture_output=True, text=True)
-
-    if '1' in result.stdout:
-        print("✅ Kong database already exists")
-        return True
-
-    create_cmd = [
-        'docker', 'run', '--rm', 'postgres:13',
-        'psql',
-        f"postgresql://{secret['username']}:{secret['password']}@"
-        f"{secret['host']}:{secret['port']}/postgres?sslmode=require",
-        '-c', f"CREATE DATABASE kong OWNER {secret['username']}"
-    ]
-
-    result = subprocess.run(create_cmd, capture_output=True, text=True)
-
-    if result.returncode == 0:
-        print("✅ Kong database created")
-        return True
-
-    print("❌ Failed to create Kong database")
+    print("❌ Database connectivity failed")
     print(result.stderr)
     return False
-
-
-# -----------------------------
-# Filesystem Setup
-# -----------------------------
-
-def setup_kong_directory():
-    import os
-    import shutil
-
-    print(f"📁 Preparing Kong directory: {config.kong.working_dir}")
-    os.makedirs(config.kong.working_dir, exist_ok=True)
-
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    if current_dir == config.kong.working_dir:
-        return
-
-    for file in [
-        'docker-compose.yml',
-        'config.py',
-        'deploy.py',
-        'secrets_manager.py',
-        'utils.py',
-        'requirements.txt'
-    ]:
-        src = os.path.join(current_dir, file)
-        dst = os.path.join(config.kong.working_dir, file)
-
-        if os.path.exists(src) and not os.path.exists(dst):
-            shutil.copy2(src, dst)
-            print(f"📄 Copied {file}")
-
-
-def download_rds_certificate():
-    print("📥 Downloading RDS CA certificate...")
-    run_command([
-        'wget', '-q',
-        'https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem',
-        '-O', f'{config.kong.working_dir}/rds-ca.pem'
-    ])
-    print("✅ RDS certificate downloaded")
 
 
 # -----------------------------
@@ -226,12 +153,11 @@ def download_rds_certificate():
 # -----------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Setup Kong Gateway")
+    parser = argparse.ArgumentParser(description="Bootstrap PostgreSQL for Kong")
     parser.add_argument('--skip-dependencies', action='store_true')
-    parser.add_argument('--skip-db-creation', action='store_true')
     args = parser.parse_args()
 
-    print("🚀 Starting Kong Gateway Setup")
+    print("🚀 Starting PostgreSQL bootstrap")
     print("=" * 50)
 
     if not args.skip_dependencies:
@@ -246,23 +172,19 @@ def main():
         print("❌ Docker Compose not available")
         sys.exit(1)
 
-    setup_kong_directory()
+    manager = KongSecretsManager(region=config.aws.region)
+    secret = manager.get_secret(config.aws.secret_name)
 
-    secret = ensure_secret_exists()
+    start_postgres_container(secret)
 
-    if not verify_db_connectivity(secret):
-        print("❌ DB connectivity failed")
+    if not wait_for_postgres(secret):
         sys.exit(1)
 
-    if not args.skip_db_creation:
-        if not create_kong_database(secret):
-            sys.exit(1)
+    if not verify_db_connectivity(secret):
+        sys.exit(1)
 
-    # download_rds_certificate()
-
-    print("\n✅ Setup completed successfully")
+    print("\n✅ PostgreSQL setup completed successfully")
     print("Next:")
-    print(f"  cd {config.kong.working_dir}")
     print("  python3 deploy.py start")
 
 
