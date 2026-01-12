@@ -11,7 +11,7 @@ PRECONDITIONS:
 import sys
 import argparse
 import subprocess
-from secrets_manager import KongSecretsManager
+from secret_manager import KongSecretsManager
 from config import config
 from utils import check_docker, check_docker_compose, run_command
 
