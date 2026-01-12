@@ -4,8 +4,10 @@ Deploy Kong Gateway (Ubuntu, Docker Compose v2, CI/CD safe)
 """
 
 import os
+import time
 import sys
 import argparse
+import subprocess
 
 from secret_manager import KongSecretsManager
 from config import config
@@ -64,6 +66,8 @@ def start_kong(credentials: dict):
     })
 
     os.chdir(config.kong.working_dir)
+    if not wait_for_postgres(credentials["host"], credentials["port"]):
+        sys.exit(1)
     run_command(['docker', 'compose', 'up', '-d'], env=env)
     print("✅ Kong started")
 
@@ -80,7 +84,29 @@ def restart_kong(credentials: dict):
     stop_kong()
     start_kong(credentials)
 
+def wait_for_postgres(host, port, timeout=60):
+    print("⏳ Waiting for PostgreSQL to be reachable...")
+    start = time.time()
 
+    while time.time() - start < timeout:
+        result = subprocess.run(
+            [
+                "docker", "run", "--rm", "postgres:13",
+                "pg_isready",
+                "-h", host,
+                "-p", str(port)
+            ],
+            capture_output=True
+        )
+
+        if result.returncode == 0:
+            print("✅ PostgreSQL is ready")
+            return True
+
+        time.sleep(2)
+
+    print("❌ PostgreSQL not reachable after timeout")
+    return False
 # -----------------------------
 # Main
 # -----------------------------
