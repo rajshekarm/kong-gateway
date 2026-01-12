@@ -117,12 +117,18 @@ def get_kong_container_id() -> Optional[str]:
         return None
 
 import requests
-def health_check():
-    try:
-        r = requests.get("http://127.0.0.1:8001/status", timeout=2)
-        return r.status_code == 200
-    except Exception:
-        return False
+def health_check(max_attempts=30):
+    for _ in range(max_attempts):
+        result = subprocess.run(
+            ["docker", "exec", "kong", "kong", "status"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            return True
+        time.sleep(2)
+    return False
+
 
 
 def get_kong_logs(lines: int = 50):
