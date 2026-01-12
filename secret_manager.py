@@ -20,6 +20,7 @@ class KongSecretsManager:
         print(f"🔍 Fetching secret: {secret_name}")
 
         try:
+            print(f"requesting secrets for ", secret_name)
             response = self.client.get_secret_value(SecretId=secret_name)
 
             print("✅ Secret retrieved successfully")
