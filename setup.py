@@ -94,6 +94,22 @@ def verify_db_connectivity(secret):
         '-c', 'SELECT 1;'
     ]
 
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode == 0:
+        print("✅ Database connectivity verified")
+        print(result.stdout)
+        return True
+    else:
+        print("❌ Database connectivity failed")
+        print(result.stderr)
+        return False
+
+
 
 def verify_rds_connectivity(secret):
     print("🔍 Verifying RDS connectivity...")
@@ -235,7 +251,7 @@ def main():
     secret = ensure_secret_exists()
 
     if not verify_db_connectivity(secret):
-        print("❌ RDS connectivity failed")
+        print("❌ DB connectivity failed")
         sys.exit(1)
 
     if not args.skip_db_creation:

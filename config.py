@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class AWSConfig:
-    region: str = os.getenv("AWS_REGION", "us-east-2")
+    region: str = "us-east-2"
     secret_name: str = os.getenv("SECRET_NAME", "kong/db-credentials")
 
 
