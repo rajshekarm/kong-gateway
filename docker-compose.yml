@@ -8,9 +8,9 @@ services:
       KONG_DATABASE: postgres
 
       KONG_PG_HOST: 172.17.0.1
-      KONG_PG_PORT: ${POSTGRES_PORT}
-      KONG_PG_USER: ${POSTGRES_USER}
-      KONG_PG_PASSWORD: ${POSTGRES_PASSWORD}
+      KONG_PG_PORT: 5432
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
       KONG_PG_DATABASE: kong
 
      # SSL DISABLED for Now : TODO
