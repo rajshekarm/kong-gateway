@@ -7,7 +7,7 @@ services:
     environment:
       KONG_DATABASE: postgres
 
-      KONG_PG_HOST: 10.0.0.13
+      KONG_PG_HOST: 172.17.0.1
       KONG_PG_PORT: ${POSTGRES_PORT}
       KONG_PG_USER: ${POSTGRES_USER}
       KONG_PG_PASSWORD: ${POSTGRES_PASSWORD}
