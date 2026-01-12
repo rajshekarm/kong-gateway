@@ -7,7 +7,7 @@ import os
 import sys
 import argparse
 
-from secrets_manager import KongSecretsManager
+from secret_manager import KongSecretsManager
 from config import config
 from utils import (
     check_docker,
