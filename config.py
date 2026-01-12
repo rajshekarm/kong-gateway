@@ -3,7 +3,7 @@ Kong Gateway Configuration
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 # -----------------------------
@@ -50,9 +50,9 @@ class KongConfig:
 
 @dataclass
 class Config:
-    aws: AWSConfig = AWSConfig()
-    rds: RDSConfig = RDSConfig()
-    kong: KongConfig = KongConfig()
+    aws: AWSConfig = field(default_factory=AWSConfig)
+    rds: RDSConfig = field(default_factory=RDSConfig)
+    kong: KongConfig = field(default_factory=KongConfig)
 
 
 config = Config()
