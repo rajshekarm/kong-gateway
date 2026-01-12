@@ -15,38 +15,38 @@ rds = boto3.client("rds", region_name=config.aws.region)
 secrets = boto3.client("secretsmanager", region_name=config.aws.region)
 
 
-def rds_exists(db_instance_id):
-    try:
-        rds.describe_db_instances(DBInstanceIdentifier=db_instance_id)
-        return True
-    except rds.exceptions.DBInstanceNotFoundFault:
-        return False
+# def rds_exists(db_instance_id):
+#     try:
+#         rds.describe_db_instances(DBInstanceIdentifier=db_instance_id)
+#         return True
+#     except rds.exceptions.DBInstanceNotFoundFault:
+#         return False
 
 
-def wait_for_rds(db_instance_id):
-    print("⏳ Waiting for RDS to become available...")
-    waiter = rds.get_waiter("db_instance_available")
-    waiter.wait(DBInstanceIdentifier=db_instance_id)
-    print(" RDS is available")
+# def wait_for_rds(db_instance_id):
+#     print("⏳ Waiting for RDS to become available...")
+#     waiter = rds.get_waiter("db_instance_available")
+#     waiter.wait(DBInstanceIdentifier=db_instance_id)
+#     print(" RDS is available")
 
 
-def create_rds(db_instance_id, password):
-    print(f" Creating RDS instance {db_instance_id}...")
+# def create_rds(db_instance_id, password):
+#     print(f" Creating RDS instance {db_instance_id}...")
 
-    rds.create_db_instance(
-        DBInstanceIdentifier=db_instance_id,
-        Engine="postgres",
-        DBInstanceClass=config.rds.instance_class,
-        AllocatedStorage=config.rds.storage,
-        MasterUsername=config.rds.username,
-        MasterUserPassword=password,
-        VpcSecurityGroupIds=[config.rds.security_group_id],
-        DBSubnetGroupName=config.rds.subnet_group,
-        BackupRetentionPeriod=7,
-        PubliclyAccessible=False,
-        StorageEncrypted=True,
-        DeletionProtection=True,
-    )
+#     rds.create_db_instance(
+#         DBInstanceIdentifier=db_instance_id,
+#         Engine="postgres",
+#         DBInstanceClass=config.rds.instance_class,
+#         AllocatedStorage=config.rds.storage,
+#         MasterUsername=config.rds.username,
+#         MasterUserPassword=password,
+#         VpcSecurityGroupIds=[config.rds.security_group_id],
+#         DBSubnetGroupName=config.rds.subnet_group,
+#         BackupRetentionPeriod=0,
+#         PubliclyAccessible=False,
+#         StorageEncrypted=True,
+#         DeletionProtection=True,
+#     )
 
 
 def secret_exists(secret_name):
@@ -68,15 +68,15 @@ def create_initial_secret(db_instance_id, password):
         print(f" Secret already exists: {config.aws.secret_name}")
         return
 
-    rds_info = rds.describe_db_instances(
-        DBInstanceIdentifier=db_instance_id
-    )["DBInstances"][0]
+    # rds_info = rds.describe_db_instances(
+    #     DBInstanceIdentifier=db_instance_id
+    # )["DBInstances"][0]
 
     secret_payload = {
-        "username": config.rds.username,
-        "password": password,
-        "host": rds_info["Endpoint"]["Address"],
-        "port": rds_info["Endpoint"]["Port"],
+        "username": "kong",
+        "password": "kong",
+        "host": "10.0.0.153",
+        "port": 5432,
         "dbname": "kong",
         "engine": "postgres",
     }
@@ -93,15 +93,15 @@ def create_initial_secret(db_instance_id, password):
 def main():
     db_instance_id = config.rds.instance_id
 
-    if rds_exists(db_instance_id):
-        print(f" RDS already exists: {db_instance_id}")
-        wait_for_rds(db_instance_id)
-        return
+    # if rds_exists(db_instance_id):
+    #     print(f" RDS already exists: {db_instance_id}")
+    #     wait_for_rds(db_instance_id)
+    #     return
 
     password = generate_strong_password()
 
-    create_rds(db_instance_id, password)
-    wait_for_rds(db_instance_id)
+    # create_rds(db_instance_id, password)
+    # wait_for_rds(db_instance_id)
     create_initial_secret(db_instance_id, password)
 
 

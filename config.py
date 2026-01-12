@@ -28,7 +28,7 @@ class RDSConfig:
     username: str = "kong"
     instance_class: str = "db.t3.micro"
     storage: int = 20
-    subnet_group: str = "kong-db-subnet-group"
+    subnet_group: str = "sim-kong-subnet-public1-us-east-2a"
     security_group_id: str = "sg-0abc123456789def"
 
 
