@@ -30,7 +30,7 @@ def run_migrations(credentials: dict):
     cmd = [
         'docker', 'run', '--rm',
         '-e', 'KONG_DATABASE=postgres',
-        '-e', f"KONG_PG_HOST={credentials['host']}",
+        '-e', f"KONG_PG_HOST=10.0.0.13",
         '-e', f"KONG_PG_PORT={credentials['port']}",
         '-e', f"KONG_PG_USER={credentials['username']}",
         '-e', f"KONG_PG_PASSWORD={credentials['password']}",
